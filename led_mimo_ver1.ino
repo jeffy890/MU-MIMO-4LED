@@ -14,6 +14,10 @@
 int i, j;  //for repeating anarogRead
 long H[4][4];  //4x4 MIMO H channel
 float iH[4][4]; //4x4 Inverce H channel
+int mtype[16][4] = {{0,0,0,0}, {0,0,0,1}, {0,0,1,0}, {0,0,1,1},
+{0,1,0,0}, {0,1,0,1}, {0,1,1,0}, {0,1,1,1},
+{1,0,0,0}, {1,0,0,1}, {1,0,1,0}, {1,0,1,1},
+{1,1,0,0}, {1,1,0,1}, {1,1,1,0}, {1,1,1,1}}; // all type of m and data
 
 int backlight[4]; //backlights
 int maximumRec[4];
@@ -32,6 +36,8 @@ boolean m4[512];
 
 //data for dac
 float dataA, dataB, dataC, dataD;
+float data[64];
+long sendE[64];
 long sendA, sendB, sendC, sendD;
 float Dmax = 0;
 float Dmin = 0;
@@ -72,124 +78,79 @@ void setup() {
   Mseq();
   mseqShift(10);
   delay(1000);
-  checkArea();
+  //checkArea();
   middle4();
+
+  //run once
+  t2 = millis();
+  zeroDAC();
+  backlight[0] = analogRead(A0);  //measure backlights
+  backlight[1] = analogRead(A1);
+  backlight[2] = analogRead(A2);
+  backlight[3] = analogRead(A3);
+
+  //Measure H channel
+  for (i = 0; i < 4; i++) {
+    zeroDAC();
+    spiSender(i + 1, 2040);
+    delay(2);
+    H[0][i] = analogRead(A0) - backlight[0];
+    H[1][i] = analogRead(A1) - backlight[1];
+    H[2][i] = analogRead(A2)- backlight[2];
+    H[3][i] = analogRead(A3) - backlight[3];
+  }
+  zeroDAC();  //set DAC to zero
+
+  inverceH();
+  //send and receive
+  for(i=0; i <4; i++){
+    for(j=0; j<16; j++){
+      data[i*16+j] = (iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3]) * 1000000;
+      Dmax = max(Dmax, data[i*16+j]);
+      Dmin = min(Dmin, data[i*16+j]);
+      sendE[i*16+j] = (long)data[i*16+j];
+      maxD = (long)Dmax;
+      minD = (long)Dmin;
+      sendE[i*16+j] = map(sendE[i*16+j], minD, maxD, 0, 2040);
+    }
+  }
+
+  for(i=0; i <16; i++){
+      spiSender(1, sendE[i]);
+      spiSender(2, sendE[i+16*1]);
+      spiSender(3, sendE[i+16*2]);
+      spiSender(4, sendE[i+16*3]);
+      delay(100);
+    }
+
+    Serial.println("H");
+    for(i=0; i<4; i++){
+      for(j=0; j<4; j++){
+        Serial.print(H[i][j]);
+        Serial.print("\t");
+      }
+      Serial.println();
+    }
+
+  Serial.println("inverceH");
+  for(i=0; i<4; i++){
+    for(j=0; j<4; j++){
+      Serial.print(iH[i][j], 6);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+
+  zeroDAC();
+
 }
 
 /////////////////////////////////////////////////////////////
 /// loop
 /////////////////////////////////////////////////////////////
 void loop() {
-  t2 = millis();
-  zeroDAC();
-  backlight[0] = analogRead(A4);  //measure backlights
-  backlight[1] = analogRead(A5);
-  backlight[2] = analogRead(A6);
-  backlight[3] = analogRead(A7);
 
-  //Measure H channel
-  for (i = 0; i < 4; i++) {
-    zeroDAC();
-    spiSender(i + 1, upperlevel[i]);
-    delay(2);
-    H[0][i] = analogRead(A4) - backlight[0];
-    H[1][i] = analogRead(A5) - backlight[1];
-    H[2][i] = analogRead(A6)- backlight[2];
-    H[3][i] = analogRead(A7) - backlight[3];
-  }
-  zeroDAC();  //set DAC to zero
 
-  inverceH();
-  //send and receive
-  for (i = 0; i < 512; i++) {
-    dataA = (iH[0][0] * m[i] + iH[0][1] * m2[i] + iH[0][2] * m3[i] + iH[0][3] * m4[i]) * 1000000;
-    dataB = (iH[1][0] * m[i] + iH[1][1] * m2[i] + iH[1][2] * m3[i] + iH[1][3] * m4[i]) * 1000000;
-    dataC = (iH[2][0] * m[i] + iH[2][1] * m2[i] + iH[2][2] * m3[i] + iH[2][3] * m4[i]) * 1000000;
-    dataD = (iH[3][0] * m[i] + iH[3][1] * m2[i] + iH[3][2] * m3[i] + iH[3][3] * m4[i]) * 1000000;
-
-    Dmax = max(Dmax, dataA);
-    Dmax = max(Dmax, dataB);
-    Dmax = max(Dmax, dataC);
-    Dmax = max(Dmax, dataD);
-
-    Dmin = min(Dmin, dataA);
-    Dmin = min(Dmin, dataB);
-    Dmin = min(Dmin, dataC);
-    Dmin = min(Dmin, dataD);
-
-    sendA = (long)dataA;
-    sendB = (long)dataB;
-    sendC = (long)dataC;
-    sendD = (long)dataD;
-
-    maxD = (long)Dmax;
-    minD = (long)Dmin;
-
-    sendA = map(dataA, minD, maxD, 0, upperlevel[0]);  //change data type from float to int
-    sendB = map(dataB, minD, maxD, 0, upperlevel[1]);
-    sendC = map(dataC, minD, maxD, 0, upperlevel[2]);
-    sendD = map(dataD, minD, maxD, 0, upperlevel[3]);
-
-    spiSender(1, sendA);  //send data
-    spiSender(2, sendB);
-    spiSender(3, sendC);
-    spiSender(4, sendD);
-    delay(5);
-
-    acRec[0] = analogRead(A4) - backlight[0];
-    acRec[1] = analogRead(A5) - backlight[1];
-    acRec[2] = analogRead(A6) - backlight[2];
-    acRec[3] = analogRead(A7) - backlight[3];
-
-    JudgeData(i);
-  }
-
-  error = (float)bat[0] / (float)512;
-  Serial.print(error, 6);
-  Serial.print("\t");
-
-  error = (float)bat[1] / (float)512;
-  Serial.print(error, 6);
-  Serial.print("\t");
-
-  error = (float)bat[2] / (float)512;
-  Serial.print(error, 6);
-  Serial.print("\t");
-
-  error = (float)bat[3] / (float)512;
-  Serial.print(error, 6);
-  Serial.print("\t");
-
-  for (i = 0; i < 4; i++) {
-    Serial.print(bat[i]);
-    Serial.print("\t");
-  }
-
-  error = 0;
-  bat[0] = 0;
-  bat[1] = 0;
-  bat[2] = 0;
-  bat[3] = 0;
-  Dmax = 0;
-  Dmin = 0;
-  Serial.print(midRec2[0]);
-  Serial.print("\t");
-  Serial.print(midRec2[1]);
-  Serial.print("\t");
-  Serial.print(midRec2[2]);
-  Serial.print("\t");
-  Serial.print(midRec2[3]);
-  Serial.print("\t");
-  Serial.print(backlight[0]);
-  Serial.print("\t");
-  Serial.print(backlight[1]);
-  Serial.print("\t");
-  Serial.print(backlight[2]);
-  Serial.print("\t");
-  Serial.print(backlight[3]);
-  Serial.print("\t");
-  t2 = millis() - t2;
-  Serial.println(t2);
 }
 
 void spiSender(int ch, int power) {
