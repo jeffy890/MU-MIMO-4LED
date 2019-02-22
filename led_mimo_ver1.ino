@@ -65,7 +65,6 @@ int bat[4] = {0, 0, 0, 0};
 int upperlevel[4];
 int lowerlevel[4];
 
-int outputP = 1400;
 
 void setup() {
   pinMode(LDAC, OUTPUT) ;
@@ -92,15 +91,14 @@ void setup() {
 
   //Measure H channel
   for (i = 0; i < 4; i++) {
-      zeroDAC();
-      spiSender(i + 1, outputP);
-      delay(2);
-      H[0][i] = analogRead(A0) - backlight[0];
-      H[1][i] = analogRead(A1) - backlight[1];
-      H[2][i] = analogRead(A2)- backlight[2];
-      H[3][i] = analogRead(A3) - backlight[3];
-    }
-
+    zeroDAC();
+    spiSender(i + 1, 2040);
+    delay(2);
+    H[0][i] = analogRead(A0) - backlight[0];
+    H[1][i] = analogRead(A1) - backlight[1];
+    H[2][i] = analogRead(A2)- backlight[2];
+    H[3][i] = analogRead(A3) - backlight[3];
+  }
   zeroDAC();  //set DAC to zero
 
   inverceH();
@@ -113,7 +111,7 @@ void setup() {
       sendE[i*16+j] = (long)data[i*16+j];
       maxD = (long)Dmax;
       minD = (long)Dmin;
-      sendE[i*16+j] = map(sendE[i*16+j], minD, maxD, 0, outputP);
+      sendE[i*16+j] = map(sendE[i*16+j], minD, maxD, 0, 2040);
     }
   }
 
@@ -125,10 +123,7 @@ void setup() {
       delay(100);
     }
 
-    zeroDAC();
-
-    Serial.println("---------------------------------------------------------------");
-    Serial.println("//  H  //");
+    Serial.println("H");
     for(i=0; i<4; i++){
       for(j=0; j<4; j++){
         Serial.print(H[i][j]);
@@ -136,9 +131,8 @@ void setup() {
       }
       Serial.println();
     }
-    Serial.println();
 
-  Serial.println("//  inverceH  //");
+  Serial.println("inverceH");
   for(i=0; i<4; i++){
     for(j=0; j<4; j++){
       Serial.print(iH[i][j], 6);
@@ -146,25 +140,8 @@ void setup() {
     }
     Serial.println();
   }
-  Serial.println();
 
-  Serial.println("//  output data  //");
-  for(i=0; i<16; i++){
-    for(j=0; j<4; j++){
-      Serial.print(sendE[j*16+i]);
-      Serial.print("\t");
-    }
-    for(j=0; j<4; j++){
-      Serial.print(mtype[i][j]);
-      Serial.print("\t");
-    }
-    Serial.println();
-  }
-
-  Serial.println("---------------------------------------------------------------");
-  Serial.println("");
-  Serial.println("");
-  Serial.println("");
+  zeroDAC();
 
 }
 
@@ -268,6 +245,13 @@ void zeroDAC() {
   spiSender(2, 0);
   spiSender(3, 0);
   spiSender(4, 0);
+}
+
+void maxDac() {
+  spiSender(1, dacmax);
+  spiSender(2, dacmax);
+  spiSender(3, dacmax);
+  spiSender(4, dacmax);
 }
 
 void middle() {
