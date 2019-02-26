@@ -35,15 +35,13 @@ boolean m3[512];
 boolean m4[512];
 
 //data for dac
-float dataA, dataB, dataC, dataD;
 float data[64];
 long sendE[64];
-long sendA, sendB, sendC, sendD;
 float Dmax = 0;
 float Dmin = 0;
 long maxD, minD;
-int dacmin = 0;
-int dacmax = 2040;
+float dataF[512];
+long sendF[512];
 
 //Received data
 int RecData[512];
@@ -80,9 +78,6 @@ void setup() {
   Mseq();
   mseqShift(10);
   delay(1000);
-  //checkArea();
-  middle4();
-
   //run once
   t2 = millis();
   zeroDAC();
@@ -185,8 +180,34 @@ void setup() {
 /// loop
 /////////////////////////////////////////////////////////////
 void loop() {
+  for(i=0; i <4; i++){
+    for(j=0; j<16; j++){
+      data[i*16+j] = (iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3]) * 1000000;
+      Dmax = max(Dmax, data[i*16+j]);
+      Dmin = min(Dmin, data[i*16+j]);
+    }
+  }
 
+  for(i=0; i <4; i++){
+    for(j=0; j<16; j++){
+      data[i*16+j] = (data[i*16+j] - Dmin) / (Dmax -Dmin) * (outputU - outputL);
+      sendE[i*16+j] = (long)data[i*16+j];
+      sendE[i*16+j] = sendE[i*16+j] + outputL;
+    }
+  }
 
+  for(i=0; i <16; i++){
+      spiSender(1, sendE[i]);
+      spiSender(2, sendE[i+16*1]);
+      spiSender(3, sendE[i+16*2]);
+      spiSender(4, sendE[i+16*3]);
+      delayMicroseconds(200);
+    }
+
+  for(i=0; i <16; i++){
+      spiSender4(sendE[i], sendE[i+16*1], sendE[i+16*2], sendE[i+16*3]);
+      delayMicroseconds(200);
+    }
 }
 
 void spiSender(int ch, int power) {
@@ -209,6 +230,34 @@ void spiSender(int ch, int power) {
     SPI.transfer((power >> 8) | 0xf0); //ch d
     SPI.transfer(power & 0xff);
   }
+  digitalWrite(SS, HIGH);
+  digitalWrite(LDAC, LOW);
+
+}
+
+
+void spiSender4(int power1, int power2, int power3, int power4) {
+  digitalWrite(LDAC, HIGH);
+  digitalWrite(SS, LOW);
+
+  SPI.transfer((power1 >> 8) | 0x00); //ch a
+  SPI.transfer(power1 & 0xff);
+  digitalWrite(SS, HIGH);
+  delayMicroseconds(8);
+  digitalWrite(SS, LOW);
+  SPI.transfer((power2 >> 8) | 0x30); //ch b
+  SPI.transfer(power2 & 0xff);
+  digitalWrite(SS, HIGH);
+  delayMicroseconds(8);
+  digitalWrite(SS, LOW);
+  SPI.transfer((power3 >> 8) | 0xc0); //ch c
+  SPI.transfer(power3 & 0xff);
+  digitalWrite(SS, HIGH);
+  delayMicroseconds(8);
+  digitalWrite(SS, LOW);
+  SPI.transfer((power4 >> 8) | 0xf0); //ch d
+  SPI.transfer(power4 & 0xff);
+
   digitalWrite(SS, HIGH);
   digitalWrite(LDAC, LOW);
 
@@ -281,47 +330,6 @@ void zeroDAC() {
   spiSender(2, 0);
   spiSender(3, 0);
   spiSender(4, 0);
-}
-
-void middle() {
-  long ave1, ave2, ave3, ave4;
-  ave1 = 0;
-  ave2 = 0;
-  ave3 = 0;
-  ave4 = 0;
-  delay(1000);
-  for (i = 0; i < 10; i++) {
-    ave4 = ave4 + analogRead(A7);
-    ave1 = ave1 + analogRead(A4);
-    ave2 = ave2 + analogRead(A5);
-    ave3 = ave3 + analogRead(A6);
-
-  }
-  midRec2[0] = ave1 / 10;
-  midRec2[1] = ave2 / 10;
-  midRec2[2] = ave3 / 10;
-  midRec2[3] = ave4 / 10;
-}
-
-void middle2() {
-  midRec2[0] = analogRead(A4);
-  midRec2[1] = analogRead(A5);
-  midRec2[2] = analogRead(A6);
-  midRec2[3] = analogRead(A7);
-}
-
-void middle3() {
-  midRec2[0] = (1000 + 250) / 2;
-  midRec2[1] = (1000 + 250) / 2;
-  midRec2[2] = (1000 + 250) / 2;
-  midRec2[3] = (1000 + 250) / 2;
-}
-
-void middle4() {
-  midRec2[0] = (upperlevel[0] + lowerlevel[0]) /2;
-  midRec2[1] = (upperlevel[1] + lowerlevel[1]) /2;
-  midRec2[2] = (upperlevel[2] + lowerlevel[2]) /2;
-  midRec2[3] = (upperlevel[3] + lowerlevel[3]) /2;
 }
 
 void onezero() {
