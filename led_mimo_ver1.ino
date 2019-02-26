@@ -65,7 +65,8 @@ int bat[4] = {0, 0, 0, 0};
 int upperlevel[4];
 int lowerlevel[4];
 
-int outputP = 1400;
+int outputU = 1400;
+int outputL = 600;
 
 void setup() {
   pinMode(LDAC, OUTPUT) ;
@@ -93,10 +94,11 @@ void setup() {
   //Measure H channel
   for (i = 0; i < 4; i++) {
       zeroDAC();
-      spiSender(i + 1, outputP);
+      spiSender(i + 1, outputU);
       delay(2);
       H[0][i] = analogRead(A0) - backlight[0];
-      H[2][i] = analogRead(A2)- backlight[2];
+      H[1][i] = analogRead(A1) - backlight[1];
+      H[2][i] = analogRead(A2) - backlight[2];
       H[3][i] = analogRead(A3) - backlight[3];
     }
 
@@ -114,8 +116,9 @@ void setup() {
 
   for(i=0; i <4; i++){
     for(j=0; j<16; j++){
-      data[i*16+j] = (data[i*16+j] - Dmin) / (Dmax -Dmin) * outputP;
+      data[i*16+j] = (data[i*16+j] - Dmin) / (Dmax -Dmin) * (outputU - outputL);
       sendE[i*16+j] = (long)data[i*16+j];
+      sendE[i*16+j] = sendE[i*16+j] + outputL;
     }
   }
 
