@@ -214,6 +214,33 @@ void spiSender(int ch, int power) {
 
 }
 
+void spiSender4(int power1, int power2, int power3, int power4) {
+  digitalWrite(LDAC, HIGH);
+  digitalWrite(SS, LOW);
+
+  SPI.transfer((power1 >> 8) | 0x00); //ch a
+  SPI.transfer(power1 & 0xff);
+  digitalWrite(SS, HIGH);
+  delayMicroseconds(8);
+  digitalWrite(SS, LOW);
+  SPI.transfer((power2 >> 8) | 0x30); //ch b
+  SPI.transfer(power2 & 0xff);
+  digitalWrite(SS, HIGH);
+  delayMicroseconds(8);
+  digitalWrite(SS, LOW);
+  SPI.transfer((power3 >> 8) | 0xc0); //ch c
+  SPI.transfer(power3 & 0xff);
+  digitalWrite(SS, HIGH);
+  delayMicroseconds(8);
+  digitalWrite(SS, LOW);
+  SPI.transfer((power4 >> 8) | 0xf0); //ch d
+  SPI.transfer(power4 & 0xff);
+
+  digitalWrite(SS, HIGH);
+  digitalWrite(LDAC, LOW);
+
+}
+
 void inverceH() {
   //Serial.println("now in inverceH function");
   t = micros();
