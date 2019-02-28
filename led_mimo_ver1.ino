@@ -13,19 +13,19 @@
 
 int i, j;  //for repeating anarogRead
 long H[4][4];  //4x4 MIMO H channel
+long Hpre[4][4]; //previous H
+long Hn[4][4];  //H channel for next cycle
 float iH[4][4]; //4x4 Inverce H channel
-int mtype[16][4] = {{0,0,0,0}, {0,0,0,1}, {0,0,1,0}, {0,0,1,1},
-{0,1,0,0}, {0,1,0,1}, {0,1,1,0}, {0,1,1,1},
-{1,0,0,0}, {1,0,0,1}, {1,0,1,0}, {1,0,1,1},
-{1,1,0,0}, {1,1,0,1}, {1,1,1,0}, {1,1,1,1}}; // all type of m and data
+float iX[4][4]; //inverce of X(sent signal)
+float Y[4][4]; //received signal for Hn
+int mtype[16][4] = {{0, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 1, 0}, {0, 0, 1, 1},
+  {0, 1, 0, 0}, {0, 1, 0, 1}, {0, 1, 1, 0}, {0, 1, 1, 1},
+  {1, 0, 0, 0}, {1, 0, 0, 1}, {1, 0, 1, 0}, {1, 0, 1, 1},
+  {1, 1, 0, 0}, {1, 1, 0, 1}, {1, 1, 1, 0}, {1, 1, 1, 1}
+}; // all type of m and data
+int A[4][4];
 
 int backlight[4]; //backlights
-int maximumRec[4];
-int minimumRec[4];
-int midRec[4];
-int midRec2[4];
-int Recmaxima[4];
-int Recminima[4];
 
 //for Mseq function
 int leng = 512;  //2^9
@@ -49,11 +49,6 @@ int dacmax = 2040;
 int RecData[512];
 int RecData2[512];
 
-int acRec[4];
-
-int Rec2max = 0;
-int Rec2min = 500;
-
 //for measuring time
 long t, t2;
 
@@ -61,9 +56,6 @@ long t, t2;
 float error;
 
 int bat[4] = {0, 0, 0, 0};
-
-int upperlevel[4];
-int lowerlevel[4];
 
 int outputU = 1400;
 int outputL = 600;
@@ -80,8 +72,6 @@ void setup() {
   Mseq();
   mseqShift(10);
   delay(1000);
-  //checkArea();
-  middle4();
 
   //run once
   t2 = millis();
@@ -93,67 +83,71 @@ void setup() {
 
   //Measure H channel
   for (i = 0; i < 4; i++) {
-      zeroDAC();
-      spiSender(i + 1, outputU);
-      delay(2);
-      H[0][i] = analogRead(A0) - backlight[0];
-      H[1][i] = analogRead(A1) - backlight[1];
-      H[2][i] = analogRead(A2) - backlight[2];
-      H[3][i] = analogRead(A3) - backlight[3];
-    }
+    zeroDAC();
+    spiSender(i + 1, outputU);
+    delay(2);
+    H[0][i] = analogRead(A0) - backlight[0];
+    H[1][i] = analogRead(A1) - backlight[1];
+    H[2][i] = analogRead(A2) - backlight[2];
+    H[3][i] = analogRead(A3) - backlight[3];
+  }
 
   zeroDAC();  //set DAC to zero
 
   inverceH();
   //send and receive
-  for(i=0; i <4; i++){
-    for(j=0; j<16; j++){
-      data[i*16+j] = (iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3]) * 1000000;
-      Dmax = max(Dmax, data[i*16+j]);
-      Dmin = min(Dmin, data[i*16+j]);
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 16; j++) {
+      data[i * 16 + j] = (iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3]) * 1000000;
+      Dmax = max(Dmax, data[i * 16 + j]);
+      Dmin = min(Dmin, data[i * 16 + j]);
     }
   }
 
-  for(i=0; i <4; i++){
-    for(j=0; j<16; j++){
-      data[i*16+j] = (data[i*16+j] - Dmin) / (Dmax -Dmin) * (outputU - outputL);
-      sendE[i*16+j] = (long)data[i*16+j];
-      sendE[i*16+j] = sendE[i*16+j] + outputL;
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 16; j++) {
+      data[i * 16 + j] = (data[i * 16 + j] - Dmin) / (Dmax - Dmin) * (outputU - outputL);
+      sendE[i * 16 + j] = (long)data[i * 16 + j];
+      sendE[i * 16 + j] = sendE[i * 16 + j] + outputL;
     }
   }
 
-  for(i=0; i <16; i++){
-      spiSender(1, sendE[i]);
-      spiSender(2, sendE[i+16*1]);
-      spiSender(3, sendE[i+16*2]);
-      spiSender(4, sendE[i+16*3]);
-      delay(100);
-    }
+  for (i = 0; i < 16; i++) {
+    spiSender(1, sendE[i]);
+    spiSender(2, sendE[i + 16 * 1]);
+    spiSender(3, sendE[i + 16 * 2]);
+    spiSender(4, sendE[i + 16 * 3]);
+    delay(100);
+  }
 
-    zeroDAC();
+  zeroDAC();
 
-    Serial.println("---------------------------------------------------------------");
-    Serial.println("//  H channel and inverceH //");
-    for(i=0; i<4; i++){
-      for(j=0; j<4; j++){
-        Serial.print(H[i][j]);
-        Serial.print("\t");
-      }
-      for(j=0; j<4; j++){
-        Serial.print(iH[i][j], 6);
-        Serial.print("\t");
-      }
-      Serial.println();
-    }
-    Serial.println();
-
-  Serial.println("//  output data  sendE //");
-  for(i=0; i<16; i++){
-    for(j=0; j<4; j++){
-      Serial.print(sendE[j*16+i]);
+  Serial.println("---------------------------------------------------------------");
+  Serial.println();
+  Serial.println("    led_mimo  written by kensuke kobayashi");
+  Serial.println();
+  Serial.println();
+  Serial.println("//  H channel and inverceH //");
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(H[i][j]);
       Serial.print("\t");
     }
-    for(j=0; j<4; j++){
+    for (j = 0; j < 4; j++) {
+      Serial.print(iH[i][j], 6);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+  Serial.println();
+
+  Serial.println("//  output data  sendE //");
+  for (i = 0; i < 16; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(sendE[j * 16 + i]);
+      Serial.print("\t");
+    }
+    for (j = 0; j < 4; j++) {
       Serial.print(mtype[i][j]);
       Serial.print("\t");
     }
@@ -162,12 +156,12 @@ void setup() {
   Serial.println();
 
   Serial.println("//  output data  data //");
-  for(i=0; i<16; i++){
-    for(j=0; j<4; j++){
-      Serial.print(data[j*16+i]);
+  for (i = 0; i < 16; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(data[j * 16 + i]);
       Serial.print("\t");
     }
-    for(j=0; j<4; j++){
+    for (j = 0; j < 4; j++) {
       Serial.print(mtype[i][j]);
       Serial.print("\t");
     }
@@ -185,8 +179,118 @@ void setup() {
 /// loop
 /////////////////////////////////////////////////////////////
 void loop() {
+  randomA();
+  inverceH();
+
+  zeroDAC();
+  backlight[0] = analogRead(A0);  //measure backlights
+  backlight[1] = analogRead(A1);
+  backlight[2] = analogRead(A2);
+  backlight[3] = analogRead(A3);
 
 
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      data[i * 4 + j] = (iH[i][0] * A[i][0] + iH[i][1] * A[i][1] + iH[i][2] * A[i][2] + iH[i][3] * A[i][3]) * 1000000;
+      Dmax = max(Dmax, data[i * 4 + j]);
+      Dmin = min(Dmin, data[i * 4 + j]);
+    }
+  }
+
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      data[i * 4 + j] = (data[i * 4 + j] - Dmin) / (Dmax - Dmin) * (outputU - outputL);
+      sendE[i * 4 + j] = (long)data[i * 4 + j];
+      sendE[i * 4 + j] = sendE[i * 4 + j] + outputL;
+    }
+  }
+
+  for (i = 0; i < 4; i++) {
+    spiSender4(sendE[i], sendE[i + 4 * 1], sendE[i + 4 * 2], sendE[i + 4 * 3]);
+    delay(2);
+    Y[0][i] = analogRead(A0) - backlight[0];
+    Y[1][i] = analogRead(A1) - backlight[1];
+    Y[2][i] = analogRead(A2) - backlight[2];
+    Y[3][i] = analogRead(A3) - backlight[3];
+  }
+
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Hpre[i][j] = H[i][j];
+    }
+  }
+
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      H[i][j] = A[i][j];
+    }
+  }
+  inverceH();
+
+  //Y x iA
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Hn[i][j] = Y[i][0] * iH[0][j] + Y[i][1] * iH[1][j] + Y[i][2] * iH[2][j] + Y[i][3] * iH[3][j];
+    }
+  }
+
+  //(Y x iA) x H
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Hn[i][j] = Hn[i][0] * Hpre[0][j] + Hn[i][1] * Hpre[1][j] + Hn[i][2] * Hpre[2][j] + Hn[i][3] * Hpre[3][j];
+    }
+  }
+
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      H[i][j] = Hn[i][j];
+    }
+  }
+
+  Serial.println("---------------------------------------------------------------");
+  Serial.println();
+  Serial.println();
+  Serial.println("//  H channel and Hpre //");
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(H[i][j]);
+      Serial.print("\t");
+    }
+    for (j = 0; j < 4; j++) {
+      Serial.print(Hpre[i][j]);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+  Serial.println();
+  Serial.println("//  A  //");
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(A[i][j]);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+
+  Serial.println();
+
+  Serial.println("---------------------------------------------------------------");
+  Serial.println();
+  Serial.println();
+  Serial.println();
+  delay(1000);
+
+}
+
+void randomA() {
+  int ran;
+  ran = random(1, 12);
+  for (i = 0; i < 4; i++) {
+    A[i][0] = mtype[i + ran][0];
+    A[i][1] = mtype[i + ran][1];
+    A[i][2] = mtype[i + ran][2];
+    A[i][3] = mtype[i + ran][3];
+  }
 }
 
 void spiSender(int ch, int power) {
@@ -304,194 +408,29 @@ void Mseq() {
 }
 
 void zeroDAC() {
-  spiSender(1, 0);
-  spiSender(2, 0);
-  spiSender(3, 0);
-  spiSender(4, 0);
+  spiSender4(0, 0, 0, 0);
 }
 
-void middle() {
-  long ave1, ave2, ave3, ave4;
-  ave1 = 0;
-  ave2 = 0;
-  ave3 = 0;
-  ave4 = 0;
-  delay(1000);
-  for (i = 0; i < 10; i++) {
-    ave4 = ave4 + analogRead(A7);
-    ave1 = ave1 + analogRead(A4);
-    ave2 = ave2 + analogRead(A5);
-    ave3 = ave3 + analogRead(A6);
-
-  }
-  midRec2[0] = ave1 / 10;
-  midRec2[1] = ave2 / 10;
-  midRec2[2] = ave3 / 10;
-  midRec2[3] = ave4 / 10;
-}
-
-void middle2() {
-  midRec2[0] = analogRead(A4);
-  midRec2[1] = analogRead(A5);
-  midRec2[2] = analogRead(A6);
-  midRec2[3] = analogRead(A7);
-}
-
-void middle3() {
-  midRec2[0] = (1000 + 250) / 2;
-  midRec2[1] = (1000 + 250) / 2;
-  midRec2[2] = (1000 + 250) / 2;
-  midRec2[3] = (1000 + 250) / 2;
-}
-
-void middle4() {
-  midRec2[0] = (upperlevel[0] + lowerlevel[0]) /2;
-  midRec2[1] = (upperlevel[1] + lowerlevel[1]) /2;
-  midRec2[2] = (upperlevel[2] + lowerlevel[2]) /2;
-  midRec2[3] = (upperlevel[3] + lowerlevel[3]) /2;
-}
-
-void onezero() {
-  for (i = 0; i < 511; i += 4) {
-    if (m[i - 1] == 0) {
-      m[i] = 1;
-      m[i + 1] = 1;
-      m[i + 2] = 1;
-      m[i + 3] = 1;
-    }
-    else {
-      m[i] = 0;
-      m[i + 1] = 0;
-      m[i + 2] = 0;
-      m[i + 3] = 0;
-    }
-  }
-}
-
-void JudgeData(int i) {
-  ///////////  1  ////////////
-  if (acRec[0] >= midRec2[0]) {
-    if (m[i] == 0) bat[0] += 1;
-  }
-  else {
-    if (m[i] == 1) bat[0] += 1;
-  }
-  ///////////  2  ////////////
-  if (acRec[1] >= midRec2[1]) {
-    if (m2[i] == 0) bat[1] += 1;
-  }
-  else {
-    if (m2[i] == 1) bat[1] += 1;
-  }
-  ///////////  3  ////////////
-  if (acRec[2] >= midRec2[2]) {
-    if (m3[i] == 0) bat[2] += 1;
-  }
-  else {
-    if (m3[i] == 1) bat[2] += 1;
-  }
-  ///////////  4  ////////////
-  if (acRec[3] >= midRec2[3]) {
-    if (m4[i] == 0) bat[3] += 1;
-  }
-  else {
-    if (m4[i] == 1) bat[3] += 1;
-  }
-}
-
-void checkArea(){
-  //needs two integer
-  //upperlevel and lowerlevel
-  int zeroA4;
-  int zeroA5;
-  int zeroA6;
-  int zeroA7;
-
-  for(i=0; i<4; i++){
-    upperlevel[i] = 0;
-    lowerlevel[i] = 0;
-  }
-
-  zeroDAC();
-  delay(2);
-  zeroA4 = analogRead(A4);
-  zeroA5 = analogRead(A5);
-  zeroA6 = analogRead(A6);
-  zeroA7 = analogRead(A7);
-
-  int acA4[5] = {zeroA4, zeroA4, zeroA4, zeroA4, zeroA4};
-  int acA5[5] = {zeroA5, zeroA5, zeroA5, zeroA5, zeroA5};
-  int acA6[5] = {zeroA6, zeroA6, zeroA6, zeroA6, zeroA6};
-  int acA7[5] = {zeroA7, zeroA7, zeroA7, zeroA7, zeroA7};
-
-  for(i=0; i<2040; i+=10){
-    zeroDAC();
-    delay(2);
-    spiSender(1, i);
-    spiSender(2, i);
-    spiSender(3, i);
-    spiSender(4, i);
-    delay(2);
-    acA4[0] = analogRead(A4);
-    acA5[0] = analogRead(A5);
-    acA6[0] = analogRead(A6);
-    acA7[0] = analogRead(A7);
-
-    if((acA4[2]-zeroA4)>=4 && (acA4[0]-zeroA4)>=4 && i > 40 && lowerlevel[0] == 0){
-      lowerlevel[0] = i;
-    }
-    if((acA5[2]-zeroA5)>=4 && (acA5[0]-zeroA5)>=4 && i > 40 && lowerlevel[1] == 0){
-      lowerlevel[1] = i;
-    }
-    if((acA6[2]-zeroA6)>=4 && (acA6[0]-zeroA6)>=4 && i > 40 && lowerlevel[2] == 0){
-      lowerlevel[2] = i;
-    }
-    if((acA7[2]-zeroA7)>=4 && (acA7[0]-zeroA7)>=4 && i > 40 && lowerlevel[3] == 0){
-      lowerlevel[3] = i;
-    }
-
-    if(acA4[0] >= 1000 && upperlevel[0] == 0){
-      upperlevel[0] = i;
-    }
-    if(acA5[0] >= 1000 && upperlevel[1] == 0){
-      upperlevel[1] = i;
-    }
-    if(acA6[0] >= 1000 && upperlevel[2] == 0){
-      upperlevel[2] = i;
-    }
-    if(acA7[0] >= 1000 && upperlevel[3] == 0){
-      upperlevel[3] = i;
-    }
-
-    for(j=5; j>1; j--){
-      acA4[j-1] = acA4[j-2];
-      acA5[j-1] = acA5[j-2];
-      acA6[j-1] = acA6[j-2];
-      acA7[j-1] = acA7[j-2];
-    }
-  }
-}
-
-void mseqShift(int i){
+void mseqShift(int i) {
   //////////  2  /////////
-  for(j = 0; j<(512-i); j++){
-    m2[j] = m[j+i];
+  for (j = 0; j < (512 - i); j++) {
+    m2[j] = m[j + i];
   }
-  for(j=512-i; j < 512; j++){
-    m2[j] = m[j+i-512];
+  for (j = 512 - i; j < 512; j++) {
+    m2[j] = m[j + i - 512];
   }
   //////////  3  /////////
-  for(j = 0; j<(512-i); j++){
-    m3[j] = m2[j+i];
+  for (j = 0; j < (512 - i); j++) {
+    m3[j] = m2[j + i];
   }
-  for(j=512-i; j < 512; j++){
-    m3[j] = m2[j+i-512];
+  for (j = 512 - i; j < 512; j++) {
+    m3[j] = m2[j + i - 512];
   }
   //////////  4  /////////
-  for(j = 0; j<(512-i); j++){
-    m4[j] = m3[j+i];
+  for (j = 0; j < (512 - i); j++) {
+    m4[j] = m3[j + i];
   }
-  for(j=512-i; j < 512; j++){
-    m4[j] = m3[j+i-512];
+  for (j = 512 - i; j < 512; j++) {
+    m4[j] = m3[j + i - 512];
   }
 }
