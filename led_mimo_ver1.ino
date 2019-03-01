@@ -49,10 +49,15 @@ int dacmax = 2040;
 //for measuring time
 long t, t2;
 
+//for measuring number of loop
+long loopnum;
+
 int outputU = 1400;
 int outputL = 600;
 
 void setup() {
+  debugmode();  //omit when the debug is done
+
   pinMode(LDAC, OUTPUT) ;
   digitalWrite(LDAC, LOW);
   SPI.begin() ;
@@ -61,11 +66,9 @@ void setup() {
   SPI.setDataMode(SPI_MODE0) ;
   Serial.begin(9600);
   zeroDAC();
-  Mseq();
-  mseqShift(10);
+  //Mseq();
+  //mseqShift(10);
   delay(1000);
-  //checkArea();
-  //middle4();
 
   //run once
   t2 = millis();
@@ -117,6 +120,10 @@ void setup() {
     zeroDAC();
 
     Serial.println("---------------------------------------------------------------");
+    Serial.println();
+    Serial.println("    led_mimo  written by kensuke kobayashi");
+    Serial.println();
+    Serial.println();
     Serial.println("//  H channel and inverceH //");
     for(i=0; i<4; i++){
       for(j=0; j<4; j++){
@@ -162,13 +169,14 @@ void setup() {
   Serial.println();
   Serial.println();
   Serial.println();
+
 }
 
 /////////////////////////////////////////////////////////////
 /// loop
 /////////////////////////////////////////////////////////////
 void loop() {
-/*
+  loopnum += 1;
   Dmax = 0;
   Dmin = 0;
   inverceH();
@@ -197,7 +205,10 @@ void loop() {
 
   //send and receive Y
   for (i = 0; i < 4; i++) {
-    spiSender4(sendE[i], sendE[i + 4 * 1], sendE[i + 4 * 2], sendE[i + 4 * 3]);
+    spiSender(1, sendE[i]);
+    spiSender(2, sendE[i+4*1]);
+    spiSender(3, sendE[i+4*2]);
+    spiSender(4, sendE[i+4*3]);
     delay(2);
     Y[0][i] = analogRead(A0) - backlight[0];
     Y[1][i] = analogRead(A1) - backlight[1];
@@ -238,7 +249,9 @@ void loop() {
 
   Serial.println("---------------------------------------------------------------");
   Serial.println();
-  Serial.println();
+  Serial.print("        ");
+  Serial.print(loopnum);
+  Serial.println(" time loop");
   Serial.println("//  H channel and Hpre //");
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
@@ -252,6 +265,17 @@ void loop() {
     Serial.println();
   }
   Serial.println();
+
+  Serial.println("//  Y  //");
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(Y[i][j]);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+
+  /*
   Serial.println("//  A  //");
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
@@ -260,6 +284,7 @@ void loop() {
     }
     Serial.println();
   }
+  */
 
   Serial.println();
 
@@ -268,7 +293,6 @@ void loop() {
   Serial.println();
   Serial.println();
   delay(1000);
-  */
 
 }
 
@@ -304,17 +328,17 @@ void spiSender4(int power1, int power2, int power3, int power4) {
   SPI.transfer((power1 >> 8) | 0x00); //ch a
   SPI.transfer(power1 & 0xff);
   digitalWrite(SS, HIGH);
-  delayMicroseconds(8);
+  delayMicroseconds(10);
   digitalWrite(SS, LOW);
   SPI.transfer((power2 >> 8) | 0x30); //ch b
   SPI.transfer(power2 & 0xff);
   digitalWrite(SS, HIGH);
-  delayMicroseconds(8);
+  delayMicroseconds(10);
   digitalWrite(SS, LOW);
   SPI.transfer((power3 >> 8) | 0xc0); //ch c
   SPI.transfer(power3 & 0xff);
   digitalWrite(SS, HIGH);
-  delayMicroseconds(8);
+  delayMicroseconds(10);
   digitalWrite(SS, LOW);
   SPI.transfer((power4 >> 8) | 0xf0); //ch d
   SPI.transfer(power4 & 0xff);
@@ -372,7 +396,10 @@ void inverceH() {
 }
 
 void zeroDAC() {
-  spiSender4(0, 0, 0, 0);
+  spiSender(1, 0);
+  spiSender(2, 0);
+  spiSender(3, 0);
+  spiSender(4, 0);
 }
 
 void Mseq() {
@@ -412,4 +439,21 @@ void mseqShift(int i) {
   for (j = 512 - i; j < 512; j++) {
     m4[j] = m3[j + i - 512];
   }
+}
+
+void debugmode(){
+  Serial.println("/////////////////////////////////////////////////////////////////////////////////////////");
+  Serial.println("/////////////////////////////////////////////////////////////////////////////////////////");
+  Serial.println("       ////////        //////////     /////////        //         //     //////////  ");
+  Serial.println("      //      //      //             //       //      //         //    //           ");
+  Serial.println("     //       //     //             //        //     //         //    //           ");
+  Serial.println("    //        //    //////////     //////////       //         //    //     ///// ");
+  Serial.println("   //        //    //             //         //    //         //    //         //");
+  Serial.println("  //       //     //             //          //   //         //    //         //");
+  Serial.println(" ////////        //////////     ////////////       /////////        /////////  ");
+  Serial.println("/////////////////////////////////////////////////////////////////////////////////////////");
+  Serial.println("//////                  Welcome to the debug mode. Let's debug !!!                 //////");
+  Serial.println("//////                       Your are now in the debug mode.                       //////");
+  Serial.println("//////        Please omit these sentences (or function) in a regular version.      //////");
+  Serial.println("/////////////////////////////////////////////////////////////////////////////////////////");
 }
