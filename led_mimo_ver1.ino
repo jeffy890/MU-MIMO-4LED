@@ -30,10 +30,10 @@ int backlight[4]; //backlights
 
 //for Mseq function
 int leng = 512;  //2^9
-//boolean m[512];  //for storing Mseq
-//boolean m2[512];
-//boolean m3[512];
-//boolean m4[512];
+boolean m[512];  //for storing Mseq
+boolean m2[512];
+boolean m3[512];
+boolean m4[512];
 
 //data for dac
 float dataA, dataB, dataC, dataD;
@@ -61,9 +61,11 @@ void setup() {
   SPI.setDataMode(SPI_MODE0) ;
   Serial.begin(9600);
   zeroDAC();
-  //Mseq();
-  //mseqShift(10);
+  Mseq();
+  mseqShift(10);
   delay(1000);
+  //checkArea();
+  //middle4();
 
   //run once
   t2 = millis();
@@ -75,87 +77,67 @@ void setup() {
 
   //Measure H channel
   for (i = 0; i < 4; i++) {
-    zeroDAC();
-    spiSender(i + 1, outputU);
-    delay(2);
-    H[0][i] = analogRead(A0) - backlight[0];
-    H[1][i] = analogRead(A1) - backlight[1];
-    H[2][i] = analogRead(A2) - backlight[2];
-    H[3][i] = analogRead(A3) - backlight[3];
-  }
-
-  //////debug
-  Serial.println("//  H channel and inverceH //");
-  for (i = 0; i < 4; i++) {
-    for (j = 0; j < 4; j++) {
-      Serial.print(H[i][j]);
-      Serial.print("\t");
+      zeroDAC();
+      spiSender(i + 1, outputU);
+      delay(2);
+      H[0][i] = analogRead(A0) - backlight[0];
+      H[1][i] = analogRead(A1) - backlight[1];
+      H[2][i] = analogRead(A2) - backlight[2];
+      H[3][i] = analogRead(A3) - backlight[3];
     }
-    for (j = 0; j < 4; j++) {
-      Serial.print(iH[i][j], 6);
-      Serial.print("\t");
-    }
-    Serial.println();
-  }
-  Serial.println();
-  //////
 
   zeroDAC();  //set DAC to zero
 
   inverceH();
   //send and receive
-  for (i = 0; i < 4; i++) {
-    for (j = 0; j < 16; j++) {
-      data[i * 16 + j] = (iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3]) * 1000000;
-      Dmax = max(Dmax, data[i * 16 + j]);
-      Dmin = min(Dmin, data[i * 16 + j]);
+  for(i=0; i <4; i++){
+    for(j=0; j<16; j++){
+      data[i*16+j] = (iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3]) * 1000000;
+      Dmax = max(Dmax, data[i*16+j]);
+      Dmin = min(Dmin, data[i*16+j]);
     }
   }
 
-  for (i = 0; i < 4; i++) {
-    for (j = 0; j < 16; j++) {
-      data[i * 16 + j] = (data[i * 16 + j] - Dmin) / (Dmax - Dmin) * (outputU - outputL);
-      sendE[i * 16 + j] = (long)data[i * 16 + j];
-      sendE[i * 16 + j] = sendE[i * 16 + j] + outputL;
+  for(i=0; i <4; i++){
+    for(j=0; j<16; j++){
+      data[i*16+j] = (data[i*16+j] - Dmin) / (Dmax -Dmin) * (outputU - outputL);
+      sendE[i*16+j] = (long)data[i*16+j];
+      sendE[i*16+j] = sendE[i*16+j] + outputL;
     }
   }
 
-  for (i = 0; i < 16; i++) {
-    spiSender(1, sendE[i]);
-    spiSender(2, sendE[i + 16 * 1]);
-    spiSender(3, sendE[i + 16 * 2]);
-    spiSender(4, sendE[i + 16 * 3]);
-    delay(100);
-  }
-
-  zeroDAC();
-
-  Serial.println("---------------------------------------------------------------");
-  Serial.println();
-  Serial.println("    led_mimo  written by kensuke kobayashi");
-  Serial.println();
-  Serial.println();
-  Serial.println("//  H channel and inverceH //");
-  for (i = 0; i < 4; i++) {
-    for (j = 0; j < 4; j++) {
-      Serial.print(H[i][j]);
-      Serial.print("\t");
+  for(i=0; i <16; i++){
+      spiSender(1, sendE[i]);
+      spiSender(2, sendE[i+16*1]);
+      spiSender(3, sendE[i+16*2]);
+      spiSender(4, sendE[i+16*3]);
+      delay(100);
     }
-    for (j = 0; j < 4; j++) {
-      Serial.print(iH[i][j], 6);
-      Serial.print("\t");
+
+    zeroDAC();
+
+    Serial.println("---------------------------------------------------------------");
+    Serial.println("//  H channel and inverceH //");
+    for(i=0; i<4; i++){
+      for(j=0; j<4; j++){
+        Serial.print(H[i][j]);
+        Serial.print("\t");
+      }
+      for(j=0; j<4; j++){
+        Serial.print(iH[i][j], 6);
+        Serial.print("\t");
+      }
+      Serial.println();
     }
     Serial.println();
-  }
-  Serial.println();
 
   Serial.println("//  output data  sendE //");
-  for (i = 0; i < 16; i++) {
-    for (j = 0; j < 4; j++) {
-      Serial.print(sendE[j * 16 + i]);
+  for(i=0; i<16; i++){
+    for(j=0; j<4; j++){
+      Serial.print(sendE[j*16+i]);
       Serial.print("\t");
     }
-    for (j = 0; j < 4; j++) {
+    for(j=0; j<4; j++){
       Serial.print(mtype[i][j]);
       Serial.print("\t");
     }
@@ -164,12 +146,12 @@ void setup() {
   Serial.println();
 
   Serial.println("//  output data  data //");
-  for (i = 0; i < 16; i++) {
-    for (j = 0; j < 4; j++) {
-      Serial.print(data[j * 16 + i]);
+  for(i=0; i<16; i++){
+    for(j=0; j<4; j++){
+      Serial.print(data[j*16+i]);
       Serial.print("\t");
     }
-    for (j = 0; j < 4; j++) {
+    for(j=0; j<4; j++){
       Serial.print(mtype[i][j]);
       Serial.print("\t");
     }
@@ -180,7 +162,6 @@ void setup() {
   Serial.println();
   Serial.println();
   Serial.println();
-
 }
 
 /////////////////////////////////////////////////////////////
@@ -394,7 +375,6 @@ void zeroDAC() {
   spiSender4(0, 0, 0, 0);
 }
 
-/*
 void Mseq() {
 
   int i, j; //for counting
@@ -433,4 +413,3 @@ void mseqShift(int i) {
     m4[j] = m3[j + i - 512];
   }
 }
-*/
