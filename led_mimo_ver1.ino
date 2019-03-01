@@ -12,9 +12,9 @@
 //SCK(clock) : 52
 
 int i, j;  //for repeating anarogRead
-long H[4][4];  //4x4 MIMO H channel
-long Hpre[4][4]; //previous H
-long Hn[4][4];  //H channel for next cycle
+float H[4][4];  //4x4 MIMO H channel
+float Hpre[4][4]; //previous H
+float Hn[4][4];  //H channel for next cycle
 float iH[4][4]; //4x4 Inverce H channel
 float iX[4][4]; //inverce of X(sent signal)
 float Y[4][4]; //received signal for Hn
@@ -24,7 +24,7 @@ int mtype[16][4] = {{0, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 1, 0}, {0, 0, 1, 1},
   {1, 1, 0, 0}, {1, 1, 0, 1}, {1, 1, 1, 0}, {1, 1, 1, 1}
 }; // all type of m and data
 int A[4][4] = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
-long sendHYS[4][4];
+float sendHYS[4][4];
 
 int backlight[4]; //backlights
 
@@ -52,11 +52,10 @@ long t, t2;
 //for measuring number of loop
 long loopnum;
 
-int outputU = 1400;
-int outputL = 600;
+float outputU = 1400;
+float outputL = 600;
 
 void setup() {
-  debugmode();  //omit when the debug is done
 
   pinMode(LDAC, OUTPUT) ;
   digitalWrite(LDAC, LOW);
@@ -65,6 +64,9 @@ void setup() {
   SPI.setClockDivider(SPI_CLOCK_DIV128) ;
   SPI.setDataMode(SPI_MODE0) ;
   Serial.begin(9600);
+
+  debugmode();  //omit when the debug is done
+
   zeroDAC();
   //Mseq();
   //mseqShift(10);
@@ -176,9 +178,21 @@ void setup() {
 /// loop
 /////////////////////////////////////////////////////////////
 void loop() {
+
+  if(loopnum == 0){
+    for(i=0; i<4; i++){
+      for(j=0; j<4; j++){
+        H[i][j] = H[i][j] / outputU;
+      }
+    }
+  }
+
   loopnum += 1;
   Dmax = 0;
   Dmin = 0;
+
+
+
   inverceH();
   zeroDAC();
   backlight[0] = analogRead(A0);  //measure backlights
@@ -189,22 +203,44 @@ void loop() {
   //preparation of Y (iH x A)
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
-      data[i * 4 + j] = (iH[i][0] * A[i][0] + iH[i][1] * A[i][1] + iH[i][2] * A[i][2] + iH[i][3] * A[i][3]) * 1000000;
+      data[i * 4 + j] = (iH[i][0] * A[0][j] + iH[i][1] * A[1][j] + iH[i][2] * A[2][j] + iH[i][3] * A[3][j]) * 1000000;
       Dmax = max(Dmax, data[i * 4 + j]);
       Dmin = min(Dmin, data[i * 4 + j]);
     }
   }
+
+  //debug
+  Serial.println("//  data  //");
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(data[i*4+j]);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+
   //make send data (for Y)
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
       data[i * 4 + j] = (data[i * 4 + j] - Dmin) / (Dmax - Dmin) * (outputU - outputL);
-      sendE[i * 4 + j] = (long)data[i * 4 + j];
+      sendE[i * 4 + j] = data[i * 4 + j];
       sendE[i * 4 + j] = sendE[i * 4 + j] + outputL;
     }
   }
 
+  //debug
+  Serial.println("//  data (send)  //");
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(sendE[i*4+j]);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+
   //send and receive Y
   for (i = 0; i < 4; i++) {
+    zeroDAC();
     spiSender(1, sendE[i]);
     spiSender(2, sendE[i+4*1]);
     spiSender(3, sendE[i+4*2]);
@@ -215,6 +251,8 @@ void loop() {
     Y[2][i] = analogRead(A2) - backlight[2];
     Y[3][i] = analogRead(A3) - backlight[3];
   }
+  zeroDAC();
+
   for(i=0; i<4; i++){
     for(j=0; j<4; j++){
       sendHYS[i][j] = sendE[i*4+j];
@@ -234,10 +272,19 @@ void loop() {
   }
   inverceH();
 
+  Serial.println("//  inverce of sendHYS  //");
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(iH[i][j], 6);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+
   //Y x iX
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
-      Hn[i][j] = Y[i][0] * iH[0][j] + Y[i][1] * iH[1][j] + Y[i][2] * iH[2][j] + Y[i][3] * iH[3][j];
+      Hn[i][j] = (Y[i][0] * iH[0][j] + Y[i][1] * iH[1][j] + Y[i][2] * iH[2][j] + Y[i][3] * iH[3][j]);
     }
   }
 
