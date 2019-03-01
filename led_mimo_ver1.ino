@@ -30,10 +30,10 @@ int backlight[4]; //backlights
 
 //for Mseq function
 int leng = 512;  //2^9
-boolean m[512];  //for storing Mseq
-boolean m2[512];
-boolean m3[512];
-boolean m4[512];
+//boolean m[512];  //for storing Mseq
+//boolean m2[512];
+//boolean m3[512];
+//boolean m4[512];
 
 //data for dac
 float dataA, dataB, dataC, dataD;
@@ -46,17 +46,8 @@ long maxD, minD;
 int dacmin = 0;
 int dacmax = 2040;
 
-//Received data
-int RecData[512];
-int RecData2[512];
-
 //for measuring time
 long t, t2;
-
-//for measuring error
-float error;
-
-int bat[4] = {0, 0, 0, 0};
 
 int outputU = 1400;
 int outputL = 600;
@@ -70,8 +61,8 @@ void setup() {
   SPI.setDataMode(SPI_MODE0) ;
   Serial.begin(9600);
   zeroDAC();
-  Mseq();
-  mseqShift(10);
+  //Mseq();
+  //mseqShift(10);
   delay(1000);
 
   //run once
@@ -92,6 +83,22 @@ void setup() {
     H[2][i] = analogRead(A2) - backlight[2];
     H[3][i] = analogRead(A3) - backlight[3];
   }
+
+  //////debug
+  Serial.println("//  H channel and inverceH //");
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      Serial.print(H[i][j]);
+      Serial.print("\t");
+    }
+    for (j = 0; j < 4; j++) {
+      Serial.print(iH[i][j], 6);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+  Serial.println();
+  //////
 
   zeroDAC();  //set DAC to zero
 
@@ -180,6 +187,9 @@ void setup() {
 /// loop
 /////////////////////////////////////////////////////////////
 void loop() {
+/*
+  Dmax = 0;
+  Dmin = 0;
   inverceH();
   zeroDAC();
   backlight[0] = analogRead(A0);  //measure backlights
@@ -277,6 +287,7 @@ void loop() {
   Serial.println();
   Serial.println();
   delay(1000);
+  */
 
 }
 
@@ -379,6 +390,11 @@ void inverceH() {
 
 }
 
+void zeroDAC() {
+  spiSender4(0, 0, 0, 0);
+}
+
+/*
 void Mseq() {
 
   int i, j; //for counting
@@ -392,10 +408,6 @@ void Mseq() {
     m9[0] = m9[5] ^ m[i]; //xor
   }
   m[leng] = 0;  //last bit is 0
-}
-
-void zeroDAC() {
-  spiSender4(0, 0, 0, 0);
 }
 
 void mseqShift(int i) {
@@ -421,3 +433,4 @@ void mseqShift(int i) {
     m4[j] = m3[j + i - 512];
   }
 }
+*/
