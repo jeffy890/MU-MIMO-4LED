@@ -23,7 +23,8 @@ int mtype[16][4] = {{0, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 1, 0}, {0, 0, 1, 1},
   {1, 0, 0, 0}, {1, 0, 0, 1}, {1, 0, 1, 0}, {1, 0, 1, 1},
   {1, 1, 0, 0}, {1, 1, 0, 1}, {1, 1, 1, 0}, {1, 1, 1, 1}
 }; // all type of m and data
-int A[4][4];
+int A[4][4] = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
+long sendHYS[4][4];
 
 int backlight[4]; //backlights
 
@@ -179,16 +180,14 @@ void setup() {
 /// loop
 /////////////////////////////////////////////////////////////
 void loop() {
-  randomA();
   inverceH();
-
   zeroDAC();
   backlight[0] = analogRead(A0);  //measure backlights
   backlight[1] = analogRead(A1);
   backlight[2] = analogRead(A2);
   backlight[3] = analogRead(A3);
 
-
+  //preparation of Y (iH x A)
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
       data[i * 4 + j] = (iH[i][0] * A[i][0] + iH[i][1] * A[i][1] + iH[i][2] * A[i][2] + iH[i][3] * A[i][3]) * 1000000;
@@ -196,7 +195,7 @@ void loop() {
       Dmin = min(Dmin, data[i * 4 + j]);
     }
   }
-
+  //make send data (for Y)
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
       data[i * 4 + j] = (data[i * 4 + j] - Dmin) / (Dmax - Dmin) * (outputU - outputL);
@@ -205,6 +204,7 @@ void loop() {
     }
   }
 
+  //send and receive Y
   for (i = 0; i < 4; i++) {
     spiSender4(sendE[i], sendE[i + 4 * 1], sendE[i + 4 * 2], sendE[i + 4 * 3]);
     delay(2);
@@ -212,6 +212,11 @@ void loop() {
     Y[1][i] = analogRead(A1) - backlight[1];
     Y[2][i] = analogRead(A2) - backlight[2];
     Y[3][i] = analogRead(A3) - backlight[3];
+  }
+  for(i=0; i<4; i++){
+    for(j=0; j<4; j++){
+      sendHYS[i][j] = sendE[i*4+j];
+    }
   }
 
   for (i = 0; i < 4; i++) {
@@ -222,22 +227,15 @@ void loop() {
 
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
-      H[i][j] = A[i][j];
+      H[i][j] = sendHYS[i][j];
     }
   }
   inverceH();
 
-  //Y x iA
+  //Y x iX
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
       Hn[i][j] = Y[i][0] * iH[0][j] + Y[i][1] * iH[1][j] + Y[i][2] * iH[2][j] + Y[i][3] * iH[3][j];
-    }
-  }
-
-  //(Y x iA) x H
-  for (i = 0; i < 4; i++) {
-    for (j = 0; j < 4; j++) {
-      Hn[i][j] = Hn[i][0] * Hpre[0][j] + Hn[i][1] * Hpre[1][j] + Hn[i][2] * Hpre[2][j] + Hn[i][3] * Hpre[3][j];
     }
   }
 
@@ -280,17 +278,6 @@ void loop() {
   Serial.println();
   delay(1000);
 
-}
-
-void randomA() {
-  int ran;
-  ran = random(1, 12);
-  for (i = 0; i < 4; i++) {
-    A[i][0] = mtype[i + ran][0];
-    A[i][1] = mtype[i + ran][1];
-    A[i][2] = mtype[i + ran][2];
-    A[i][3] = mtype[i + ran][3];
-  }
 }
 
 void spiSender(int ch, int power) {
