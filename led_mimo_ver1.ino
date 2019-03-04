@@ -25,6 +25,7 @@ int mtype[16][4] = {{0, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 1, 0}, {0, 0, 1, 1},
 }; // all type of m and data
 int A[4][4] = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}};
 float sendHYS[4][4];
+float Hmax, Hmin;
 
 int backlight[4]; //backlights
 
@@ -260,12 +261,21 @@ void loop() {
   Serial.print("\t");
   Serial.println(Dmin, 6);
 
+  Hmax = 0;
+  Hmin = 0;
+
   inverseH();
   zeroDAC();
+  delay(10);
   backlight[0] = analogRead(A0);  //measure backlights
   backlight[1] = analogRead(A1);
   backlight[2] = analogRead(A2);
   backlight[3] = analogRead(A3);
+
+    spiSender(1, outputU);
+    spiSender(2, outputU);
+    spiSender(3, outputU);
+    spiSender(4, outputU);
 
   //preparation of Y (iH x A)
   for (i = 0; i < 4; i++) {
@@ -332,7 +342,7 @@ void loop() {
     Y[2][i] = analogRead(A2) - backlight[2];
     Y[3][i] = analogRead(A3) - backlight[3];
   }
-  zeroDAC();
+  //zeroDAC();
 
   for(i=0; i<4; i++){
     for(j=0; j<4; j++){
@@ -372,9 +382,17 @@ void loop() {
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
       H[i][j] = Hn[i][j];
+
+      Hmax = max(Hmax, H[i][j]);
+      Hmin = min(Hmin, H[i][j]);
     }
   }
 
+  for (i = 0; i < 4; i++) {
+    for (j = 0; j < 4; j++) {
+      H[i][j] = H[i][j] - Hmin;
+    }
+  }
 
   Serial.println("//  H channel and Hpre //");
   for (i = 0; i < 4; i++) {
@@ -494,7 +512,7 @@ void inverseH() {
   float o = H[2][3];
   float p = H[3][3];
 
-  deno = f * h * j * m - e * i * j * m - f * g * k * m + d * i * k * m + e * g * l * m - d * h * l * m - c * h * j * n + b * i * j * n + c * g * k * n - a * i * k * n - b * g * l * n + a * h * l * n + c * e * j * o - b * f * j * o - c * d * k * o + a * f + k * o + b * d * l * o - a * e * l * o - c * e * g * p + b * f * g * p + c * d * h * p - a * f * h * p - b * d * i * p + a * e * i * p;
+  deno = f * h * j * m - e * i * j * m - f * g * k * m + d * i * k * m + e * g * l * m - d * h * l * m - c * h * j * n + b * i * j * n + c * g * k * n - a * i * k * n - b * g * l * n + a * h * l * n + c * e * j * o - b * f * j * o - c * d * k * o + a * f * k * o + b * d * l * o - a * e * l * o - c * e * g * p + b * f * g * p + c * d * h * p - a * f * h * p - b * d * i * p + a * e * i * p;
   iH[0][0] = (-i * k * n + h * l * n + f * k * o - e * l * o - f * h * p + e * i * p) / deno;
   iH[0][1] = (i * k * m - h * l * m - c * k * o + b * l * o + c * h * p - b * i * p) / deno;
   iH[0][2] = (-f * k * m + e * l * m + c * k * n - b * l * n - c * e * p + b * f * p) / deno;
@@ -515,8 +533,8 @@ void inverseH() {
   //Serial.print("time spent for calculating inverseH >>");
   //Serial.println(t);
 
-  //Serial.print("denominator is >> ");
-  //Serial.println(deno, 10);
+  Serial.print("denominator is >> ");
+  Serial.println(deno, 10);
 
 }
 
