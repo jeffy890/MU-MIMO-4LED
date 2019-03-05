@@ -4,6 +4,8 @@
 //written by Kensuke Kobayashi
 //starts from 2019/2/8
 
+//HYS data Sender
+//2019/3/5
 
 #include <SPI.h>
 #define LDAC  8 //dac on
@@ -37,15 +39,14 @@ boolean m3[512];
 boolean m4[512];
 
 //data for dac
-float dataA, dataB, dataC, dataD;
 float data[64];
 long sendE[64];
-long sendA, sendB, sendC, sendD;
+float chAdata, chBdata, chCdata, chDdata;
+long chAsend, chBsend, chCsend, chDsend;
 float Dmax = 0;
 float Dmin = 0;
-long maxD, minD;
-int dacmin = 0;
-int dacmax = 2040;
+float DmaxMseq = 0;
+float DminMseq = 0;
 
 //for measuring time
 long t, t2;
@@ -69,8 +70,8 @@ void setup() {
   debugmode();  //omit when the debug is done
 
   zeroDAC();
-  //Mseq();
-  //mseqShift(10);
+  Mseq();
+  mseqShift(10);
   delay(1000);
 
   //run once
@@ -344,6 +345,61 @@ void loop() {
   }
   //zeroDAC();
 
+  Serial.println("send m seq from now on");
+////////////////////////////////////////////////////////////////////////////////
+//////////  Need to be very careful   this code below is from older version ////
+////////////////////////////////////////////////////////////////////////////////
+  //send and receive
+  for(i = 0; i < 4; i++){
+    for(j=0; j < 16; j++){
+      chAdata = iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3];
+      DmaxMseq = max(DmaxMseq, chAdata);
+      DminMseq = min(DminMseq, chAdata);
+    }
+  }
+
+  for (i = 0; i < 512; i++) {
+    chAdata = (iH[0][0] * m[i] + iH[0][1] * m2[i] + iH[0][2] * m3[i] + iH[0][3] * m4[i]);
+    chBdata = (iH[1][0] * m[i] + iH[1][1] * m2[i] + iH[1][2] * m3[i] + iH[1][3] * m4[i]);
+    chCdata = (iH[2][0] * m[i] + iH[2][1] * m2[i] + iH[2][2] * m3[i] + iH[2][3] * m4[i]);
+    chDdata = (iH[3][0] * m[i] + iH[3][1] * m2[i] + iH[3][2] * m3[i] + iH[3][3] * m4[i]);
+
+    chAdata = (chAdata - (float)DminMseq) / (float)(DmaxMseq - DminMseq) * (outputU - outputL);
+    chBdata = (chBdata - (float)DminMseq) / (float)(DmaxMseq - DminMseq) * (outputU - outputL);
+    chCdata = (chCdata - (float)DminMseq) / (float)(DmaxMseq - DminMseq) * (outputU - outputL);
+    chDdata = (chDdata - (float)DminMseq) / (float)(DmaxMseq - DminMseq) * (outputU - outputL);
+
+    chAsend = chAdata + outputL;
+    chBsend = chBdata + outputL;
+    chCsend = chCdata + outputL;
+    chDsend = chDdata + outputL;
+
+    spiSender(1, chAsend);  //send data
+    spiSender(2, chBsend);
+    spiSender(3, chCsend);
+    spiSender(4, chDsend);
+    delay(50);
+
+/*
+    acRec[0] = analogRead(A4) - backlight[0];
+    acRec[1] = analogRead(A5) - backlight[1];
+    acRec[2] = analogRead(A6) - backlight[2];
+    acRec[3] = analogRead(A7) - backlight[3];
+*/
+    //JudgeData(i);
+/*
+    RecData[i*4] = acRec[0];
+    RecData[i*4+1] = acRec[1];
+    RecData[i*4+2] = acRec[2];
+    RecData[i*4+3] = acRec[3];
+*/
+  }
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
   for(i=0; i<4; i++){
     for(j=0; j<4; j++){
       sendHYS[i][j] = sendE[i*4+j] - outputL;
@@ -382,18 +438,18 @@ void loop() {
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
       H[i][j] = Hn[i][j];
-
-      Hmax = max(Hmax, H[i][j]);
-      Hmin = min(Hmin, H[i][j]);
+      //Hmax = max(Hmax, H[i][j]);
+      //Hmin = min(Hmin, H[i][j]);
     }
   }
 
+/*
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
       H[i][j] = H[i][j] - Hmin;
     }
   }
-
+*/
   Serial.println("//  H channel and Hpre //");
   for (i = 0; i < 4; i++) {
     for (j = 0; j < 4; j++) {
