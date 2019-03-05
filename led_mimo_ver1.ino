@@ -104,7 +104,7 @@ void setup() {
 
     for(i=0; i <4; i++){
       for(j=0; j<4; j++){
-        H[i][j] = H[i][j] / outputU;
+        H[i][j] = H[i][j] / (outputU - outputL);
       }
     }
 
@@ -313,7 +313,7 @@ void loop() {
     Serial.println();
   }
 
-  //debug
+
   for (i = 0; i < 16; i++) {
       sendE[i] = data[i];
       sendE[i] = sendE[i] + outputL;
@@ -346,7 +346,7 @@ void loop() {
 
   for(i=0; i<4; i++){
     for(j=0; j<4; j++){
-      sendHYS[i][j] = sendE[i*4+j];
+      sendHYS[i][j] = sendE[i*4+j] - outputL;
     }
   }
 
