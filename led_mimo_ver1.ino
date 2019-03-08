@@ -57,6 +57,16 @@ long loopnum;
 float outputU = 1400;
 float outputL = 600;
 
+//bit error rate and experimental data
+int error[4];
+int chH[4];
+int chL[4];
+int chM[4];
+int rec[4];
+float ber[4];
+float midlevel[64];
+float DofI[4];
+
 void setup() {
 
   pinMode(LDAC, OUTPUT) ;
@@ -101,6 +111,11 @@ void setup() {
       }
       Serial.println();
     }
+
+    DofI[0] = (H[0][1] + H[0][2] + H[0][3]) / H[0][0];
+    DofI[1] = (H[1][0] + H[1][2] + H[1][3]) / H[1][1];
+    DofI[2] = (H[2][0] + H[2][1] + H[2][3]) / H[2][2];
+    DofI[3] = (H[3][0] + H[3][1] + H[3][2]) / H[3][3];
 
 
     for(i=0; i <4; i++){
@@ -214,6 +229,16 @@ void setup() {
     }
     Serial.println();
   }
+
+  Serial.println("Degree of Interference");
+  Serial.print(DofI[0]);
+  Serial.print("\t");
+  Serial.print(DofI[1]);
+  Serial.print("\t");
+  Serial.print(DofI[2]);
+  Serial.print("\t");
+  Serial.print(DofI[3]);
+  Serial.println("\t");
 
   Serial.println("---------------------------------------------------------------");
   Serial.println();
@@ -343,7 +368,8 @@ void loop() {
     Y[2][i] = analogRead(A2) - backlight[2];
     Y[3][i] = analogRead(A3) - backlight[3];
   }
-  //zeroDAC();
+
+
 
   Serial.println("send m seq from now on");
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,11 +378,69 @@ void loop() {
   //send and receive
   for(i = 0; i < 4; i++){
     for(j=0; j < 16; j++){
-      chAdata = iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3];
-      DmaxMseq = max(DmaxMseq, chAdata);
-      DminMseq = min(DminMseq, chAdata);
+      midlevel[i*16+j] = iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3];
+      DmaxMseq = max(DmaxMseq, midlevel[i*16+j]);
+      DminMseq = min(DminMseq, midlevel[i*16+j]);
     }
   }
+
+  for (i = 0; i < 16; i++) {
+    chAdata = midlevel[i];
+    chBdata = midlevel[i+16*1];
+    chCdata = midlevel[i+16*2];
+    chDdata = midlevel[i+16*3];
+
+/*
+    Serial.print(chAdata);
+    Serial.print("\t");
+    Serial.print(chBdata);
+    Serial.print("\t");
+    Serial.print(chCdata);
+    Serial.print("\t");
+    Serial.print(chDdata);
+    Serial.println("\t");
+*/
+
+    chAdata = (chAdata - (float)DminMseq) / (float)(DmaxMseq - DminMseq) * (outputU - outputL);
+    chBdata = (chBdata - (float)DminMseq) / (float)(DmaxMseq - DminMseq) * (outputU - outputL);
+    chCdata = (chCdata - (float)DminMseq) / (float)(DmaxMseq - DminMseq) * (outputU - outputL);
+    chDdata = (chDdata - (float)DminMseq) / (float)(DmaxMseq - DminMseq) * (outputU - outputL);
+
+    chAsend = chAdata + outputL;
+    chBsend = chBdata + outputL;
+    chCsend = chCdata + outputL;
+    chDsend = chDdata + outputL;
+
+    spiSender(1, chAsend);  //send data
+    spiSender(2, chBsend);
+    spiSender(3, chCsend);
+    spiSender(4, chDsend);
+    delay(50);
+
+
+    if(i == 0){
+      chL[0] = analogRead(A0) - backlight[0];
+      chL[1] = analogRead(A1) - backlight[1];
+      chL[2] = analogRead(A2) - backlight[2];
+      chL[3] = analogRead(A3) - backlight[3];
+    }
+    else if(i == 15){
+      chH[0] = analogRead(A0) - backlight[0];
+      chH[1] = analogRead(A1) - backlight[1];
+      chH[2] = analogRead(A2) - backlight[2];
+      chH[3] = analogRead(A3) - backlight[3];
+    }
+  }
+
+  chM[0] = (int)(chH[0] + chL[0])/2;
+  chM[1] = (int)(chH[1] + chL[1])/2;
+  chM[2] = (int)(chH[2] + chL[2])/2;
+  chM[3] = (int)(chH[3] + chL[3])/2;
+
+      error[0] = 0;
+      error[1] = 0;
+      error[2] = 0;
+      error[3] = 0;
 
   for (i = 0; i < 512; i++) {
     chAdata = (iH[0][0] * m[i] + iH[0][1] * m2[i] + iH[0][2] * m3[i] + iH[0][3] * m4[i]);
@@ -380,18 +464,54 @@ void loop() {
     spiSender(4, chDsend);
     delay(50);
 
+    rec[0] = analogRead(A0) - backlight[0];
+    rec[1] = analogRead(A1) - backlight[1];
+    rec[2] = analogRead(A2) - backlight[2];
+    rec[3] = analogRead(A3) - backlight[3];
+
+    if(rec[0] <= chM[0]){
+      rec[0] = 0;
+    }
+    else rec[0] = 1;
+
+    if(rec[1] <= chM[1]){
+      rec[1] = 0;
+    }
+    else rec[1] = 1;
+
+    if(rec[2] <= chM[2]){
+      rec[2] = 0;
+    }
+    else rec[2] = 1;
+
+    if(rec[3] <= chM[3]){
+      rec[3] = 0;
+    }
+    else rec[3] = 1;
+
+
+    if(rec[0] != m[i]){
+      error[0] += 1;
+    }
+    if(rec[1] != m2[i]){
+      error[1] += 1;
+    }
+    if(rec[2] != m3[i]){
+      error[2] += 1;
+    }
+    if(rec[3] != m4[i]){
+      error[3] += 1;
+    }
+
 /*
-    acRec[0] = analogRead(A4) - backlight[0];
-    acRec[1] = analogRead(A5) - backlight[1];
-    acRec[2] = analogRead(A6) - backlight[2];
-    acRec[3] = analogRead(A7) - backlight[3];
-*/
-    //JudgeData(i);
-/*
-    RecData[i*4] = acRec[0];
-    RecData[i*4+1] = acRec[1];
-    RecData[i*4+2] = acRec[2];
-    RecData[i*4+3] = acRec[3];
+    Serial.print(rec[0]);
+    Serial.print("\t");
+    Serial.print(rec[1]);
+    Serial.print("\t");
+    Serial.print(rec[2]);
+    Serial.print("\t");
+    Serial.print(rec[3]);
+    Serial.println("\t");
 */
   }
 
@@ -472,6 +592,41 @@ void loop() {
       Serial.print("\t");
     }
     Serial.println();
+  }
+
+  ber[0] = (float)error[0] / (float)512;
+  ber[1] = (float)error[1] / (float)512;
+  ber[2] = (float)error[2] / (float)512;
+  ber[3] = (float)error[3] / (float)512;
+
+  Serial.println("error");
+  for (i = 0; i < 4; i++) {
+    Serial.print(error[i]);
+    Serial.print("\t");
+  }
+  Serial.println();
+  Serial.println("BER");
+  for (i = 0; i < 4; i++) {
+    Serial.print(ber[i]);
+    Serial.print("\t");
+  }
+  Serial.println();
+  Serial.println("chH");
+  for (i = 0; i < 4; i++) {
+    Serial.print(chH[i]);
+    Serial.print("\t");
+  }
+  Serial.println();
+  Serial.println("chL");
+  for (i = 0; i < 4; i++) {
+    Serial.print(chL[i]);
+    Serial.print("\t");
+  }
+  Serial.println();
+  Serial.println("chH+chL / 2");
+  for (i = 0; i < 4; i++) {
+    Serial.print((chH[i]+chL[i])/2);
+    Serial.print("\t");
   }
 
   /*
