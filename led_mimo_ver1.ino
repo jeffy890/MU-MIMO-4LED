@@ -7,6 +7,8 @@
 //HYS data Sender
 //2019/3/5
 
+//editted by Makimura
+
 #include <SPI.h>
 #define LDAC  8 //dac on
 //SS(slave select) : 53
