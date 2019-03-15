@@ -54,8 +54,8 @@ long t, t2;
 //for measuring number of loop
 long loopnum;
 
-float outputU = 1400;
-float outputL = 600;
+float outputU = 1500;
+float outputL = 700;
 
 //bit error rate and experimental data
 int error[4];
@@ -372,6 +372,7 @@ void loop() {
 
 
   Serial.println("send m seq from now on");
+  //delay(10000);  //for measuring 16 bits on the oscilloscope
 ////////////////////////////////////////////////////////////////////////////////
 //////////  Need to be very careful   this code below is from older version ////
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,8 +380,10 @@ void loop() {
   for(i = 0; i < 4; i++){
     for(j=0; j < 16; j++){
       midlevel[i*16+j] = iH[i][0] * mtype[j][0] + iH[i][1] * mtype[j][1] + iH[i][2] * mtype[j][2] + iH[i][3] * mtype[j][3];
-      DmaxMseq = max(DmaxMseq, midlevel[i*16+j]);
-      DminMseq = min(DminMseq, midlevel[i*16+j]);
+      if(loopnum == 1){
+        DmaxMseq = max(DmaxMseq, midlevel[i*16+j]);
+        DminMseq = min(DminMseq, midlevel[i*16+j]);
+      }
     }
   }
 
@@ -437,10 +440,12 @@ void loop() {
   chM[2] = (int)(chH[2] + chL[2])/2;
   chM[3] = (int)(chH[3] + chL[3])/2;
 
+/*
       error[0] = 0;
       error[1] = 0;
       error[2] = 0;
       error[3] = 0;
+*/
 
   for (i = 0; i < 512; i++) {
     chAdata = (iH[0][0] * m[i] + iH[0][1] * m2[i] + iH[0][2] * m3[i] + iH[0][3] * m4[i]);
@@ -594,22 +599,25 @@ void loop() {
     Serial.println();
   }
 
-  ber[0] = (float)error[0] / (float)512;
-  ber[1] = (float)error[1] / (float)512;
-  ber[2] = (float)error[2] / (float)512;
-  ber[3] = (float)error[3] / (float)512;
+  if(loopnum == 4){
+    ber[0] = (float)error[0] / (float)2048;
+    ber[1] = (float)error[1] / (float)2048;
+    ber[2] = (float)error[2] / (float)2048;
+    ber[3] = (float)error[3] / (float)2048;
 
-  Serial.println("error");
-  for (i = 0; i < 4; i++) {
-    Serial.print(error[i]);
-    Serial.print("\t");
+    Serial.println("error");
+    for (i = 0; i < 4; i++) {
+      Serial.print(error[i]);
+      Serial.print("\t");
+    }
+    Serial.println();
+    Serial.println("BER");
+    for (i = 0; i < 4; i++) {
+      Serial.print(ber[i], 6);
+      Serial.print("\t");
+    }
   }
-  Serial.println();
-  Serial.println("BER");
-  for (i = 0; i < 4; i++) {
-    Serial.print(ber[i]);
-    Serial.print("\t");
-  }
+
   Serial.println();
   Serial.println("chH");
   for (i = 0; i < 4; i++) {
