@@ -5,7 +5,7 @@
 //starts from 2019/2/8
 
 //HYS data Sender
-//2019/3/5
+//edited on 2019/7/12 for experiment
 
 #include <SPI.h>
 #define LDAC  8 //dac on
